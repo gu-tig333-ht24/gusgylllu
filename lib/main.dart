@@ -69,22 +69,6 @@ class _TodoListState extends State<TodoList> {
         children: [
           Padding(
             padding: const EdgeInsets.all(8.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _controller,
-                    decoration: const InputDecoration(
-                      hintText: 'What are you going to do?',
-                    ),
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.add),
-                  onPressed: null,//will call a function to add todo item to list.
-                ),
-              ],
-            ),
           ),
           Expanded(
             child: ListView.builder(
