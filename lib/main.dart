@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   runApp(const MyApp());
@@ -37,18 +38,42 @@ class _TodoListState extends State<TodoList> {
   @override
   void initState() {
     super.initState();
-    _registerUser();
+    _loadApiKey(); // Load the API key when the app starts
   }
 
-  // 1. Register to get API key
+  // 1. Load API key from local storage or register for a new one
+  Future<void> _loadApiKey() async {
+    final prefs = await SharedPreferences.getInstance();
+    final storedApiKey = prefs.getString('apiKey');
+    print('Stored API Key (from SharedPreferences): $storedApiKey');
+
+    if (storedApiKey != null) {
+      // API key exists in local storage, use it
+      setState(() {
+        apiKey = storedApiKey;
+        print('Using stored API Key: $apiKey');
+        _fetchTodos(); // Fetch todos with the existing API key
+      });
+    } else {
+      // No API key, register for a new one
+      _registerUser();
+    }
+  }
+
+  // 2. Register for a new API key and store it locally
   Future<void> _registerUser() async {
     try {
       final response = await http.get(Uri.parse('https://todoapp-api.apps.k8s.gu.se/register'));
       if (response.statusCode == 200) {
+        final newApiKey = response.body;
+        final prefs = await SharedPreferences.getInstance();
+        bool result = await prefs.setString('apiKey', newApiKey);
+        print('API Key saved to SharedPreferences: $newApiKey, Success: $result');
+
         setState(() {
-          apiKey = response.body;
-          print('API Key: $apiKey');
-          _fetchTodos();
+          apiKey = newApiKey;
+          print('Registered new API Key: $apiKey');
+          _fetchTodos(); // Fetch todos with the new API key
         });
       } else {
         print('Failed to register and get API key');
@@ -64,7 +89,7 @@ class _TodoListState extends State<TodoList> {
     }
   }
 
-  // 2. Fetch todos from the API
+  // 3. Fetch todos from the API
   Future<void> _fetchTodos() async {
     if (apiKey.isEmpty) {
       print('API Key is empty, aborting fetch.');
@@ -87,6 +112,7 @@ class _TodoListState extends State<TodoList> {
               }).toList();
           _isLoading = false;
         });
+        print('Fetched Todos: $_todoItems');
       } else {
         print('Failed to fetch todos. Status code: ${response.statusCode}');
         setState(() {
@@ -101,7 +127,7 @@ class _TodoListState extends State<TodoList> {
     }
   }
 
-  // 3. Add a new todo to the API
+  // 4. Add a new todo to the API
   Future<void> _addNewTask(String task) async {
     try {
       final response = await http.post(
@@ -119,7 +145,7 @@ class _TodoListState extends State<TodoList> {
     }
   }
 
-  // 4. Toggle the done status of a todo in the API
+  // 5. Toggle the done status of a todo in the API
   Future<void> _toggleDone(int index) async {
     final todo = _todoItems[index];
     try {
@@ -138,7 +164,7 @@ class _TodoListState extends State<TodoList> {
     }
   }
 
-  // 5. Delete a todo from the API
+  // 6. Delete a todo from the API
   Future<void> _removeTodoItem(int index) async {
     final todo = _todoItems[index];
     try {
