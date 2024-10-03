@@ -82,13 +82,15 @@ class _TodoListState extends State<TodoList> {
           ),
         ],
       ),
-      body: ListView.separated(
+      body: ListView.builder(
         itemCount: _todoItems.length,
         itemBuilder: (context, index) {
-          return _buildTodoItem(_todoItems[index]['title'], _todoItems[index]['done'], index);
-        },
-        separatorBuilder: (context, index) {
-          return const Divider(); // Adds a line between items
+          return Column(
+            children: [
+              _buildTodoItem(_todoItems[index]['title'], _todoItems[index]['done'], index),
+              const Divider(), // Add a divider after each item, including the last one
+            ],
+          );
         },
       ),
       floatingActionButton: FloatingActionButton(
