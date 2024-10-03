@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 
 void main() {
   runApp(const MyApp());
@@ -27,33 +29,130 @@ class TodoList extends StatefulWidget {
 }
 
 class _TodoListState extends State<TodoList> {
-  final List<Map<String, dynamic>> _todoItems = [
-    {'title': 'Write a book', 'done': false},
-    {'title': 'Do homework', 'done': false},
-    {'title': 'Tidy room', 'done': true},
-    {'title': 'Watch TV', 'done': false},
-    {'title': 'Nap', 'done': false},
-    {'title': 'Shop groceries', 'done': false},
-    {'title': 'Have fun', 'done': false},
-    {'title': 'Meditate', 'done': false},
-  ];
+  final String apiUrl = 'https://todoapp-api.apps.k8s.gu.se/todos';
+  String apiKey = '';
+  List<Map<String, dynamic>> _todoItems = [];
+  bool _isLoading = true;
 
-  void _toggleDone(int index) {
-    setState(() {
-      _todoItems[index]['done'] = !_todoItems[index]['done'];
-    });
+  @override
+  void initState() {
+    super.initState();
+    _registerUser();
   }
 
-  void _removeTodoItem(int index) {
-    setState(() {
-      _todoItems.removeAt(index);
-    });
+  // 1. Register to get API key
+  Future<void> _registerUser() async {
+    try {
+      final response = await http.get(Uri.parse('https://todoapp-api.apps.k8s.gu.se/register'));
+      if (response.statusCode == 200) {
+        setState(() {
+          apiKey = response.body;
+          print('API Key: $apiKey');
+          _fetchTodos();
+        });
+      } else {
+        print('Failed to register and get API key');
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    } catch (error) {
+      print('Error during registration: $error');
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
-  void _addNewTask(String task) {
+  // 2. Fetch todos from the API
+  Future<void> _fetchTodos() async {
+    if (apiKey.isEmpty) {
+      print('API Key is empty, aborting fetch.');
+      return;
+    }
+
     setState(() {
-      _todoItems.add({'title': task, 'done': false});
+      _isLoading = true; // Show loading spinner while fetching todos
     });
+
+    try {
+      final response = await http.get(Uri.parse('$apiUrl?key=$apiKey'));
+      if (response.statusCode == 200) {
+        final List<dynamic> todos = json.decode(response.body);
+        setState(() {
+          _todoItems = todos.map((item) => {
+                'id': item['id'],
+                'title': item['title'],
+                'done': item['done'],
+              }).toList();
+          _isLoading = false;
+        });
+      } else {
+        print('Failed to fetch todos. Status code: ${response.statusCode}');
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    } catch (error) {
+      print('Error fetching todos: $error');
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  // 3. Add a new todo to the API
+  Future<void> _addNewTask(String task) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$apiUrl?key=$apiKey'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'title': task, 'done': false}),
+      );
+      if (response.statusCode == 200) {
+        _fetchTodos(); // Refresh the list after adding
+      } else {
+        print('Failed to add new todo');
+      }
+    } catch (error) {
+      print('Error adding new task: $error');
+    }
+  }
+
+  // 4. Toggle the done status of a todo in the API
+  Future<void> _toggleDone(int index) async {
+    final todo = _todoItems[index];
+    try {
+      final response = await http.put(
+        Uri.parse('$apiUrl/${todo['id']}?key=$apiKey'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'title': todo['title'], 'done': !todo['done']}),
+      );
+      if (response.statusCode == 200) {
+        _fetchTodos(); // Refresh the list after update
+      } else {
+        print('Failed to update todo');
+      }
+    } catch (error) {
+      print('Error toggling done status: $error');
+    }
+  }
+
+  // 5. Delete a todo from the API
+  Future<void> _removeTodoItem(int index) async {
+    final todo = _todoItems[index];
+    try {
+      final response = await http.delete(
+        Uri.parse('$apiUrl/${todo['id']}?key=$apiKey'),
+      );
+      if (response.statusCode == 200) {
+        _fetchTodos(); // Refresh the list after deletion
+      } else {
+        print('Failed to delete todo');
+      }
+    } catch (error) {
+      print('Error deleting task: $error');
+    }
   }
 
   @override
@@ -62,40 +161,24 @@ class _TodoListState extends State<TodoList> {
       appBar: AppBar(
         title: const Text('TIG333 TODO', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.grey[300],
-        actions: [
-          PopupMenuButton<String>(
-            onSelected: (String result) {},
-            itemBuilder: (BuildContext context) => [
-              const PopupMenuItem(
-                value: 'all',
-                child: Text('All'),
-              ),
-              const PopupMenuItem(
-                value: 'done',
-                child: Text('Done'),
-              ),
-              const PopupMenuItem(
-                value: 'undone',
-                child: Text('Undone'),
-              ),
-            ],
-          ),
-        ],
       ),
-      body: ListView.builder(
-        itemCount: _todoItems.length,
-        itemBuilder: (context, index) {
-          return Column(
-            children: [
-              _buildTodoItem(_todoItems[index]['title'], _todoItems[index]['done'], index),
-              const Divider(), // Add a divider after each item, including the last one
-            ],
-          );
-        },
-      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _todoItems.isEmpty
+              ? const Center(child: Text('No todos yet'))
+              : ListView.builder(
+                  itemCount: _todoItems.length,
+                  itemBuilder: (context, index) {
+                    return Column(
+                      children: [
+                        _buildTodoItem(_todoItems[index]['title'], _todoItems[index]['done'], index),
+                        const Divider(), // Adds a divider after each item
+                      ],
+                    );
+                  },
+                ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          // Navigate to the Add Task Screen
           Navigator.push(
             context,
             MaterialPageRoute(
