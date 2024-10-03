@@ -27,7 +27,6 @@ class TodoList extends StatefulWidget {
 }
 
 class _TodoListState extends State<TodoList> {
-  final TextEditingController _controller = TextEditingController();
   final List<Map<String, dynamic>> _todoItems = [
     {'title': 'Write a book', 'done': false},
     {'title': 'Do homework', 'done': false},
@@ -38,6 +37,24 @@ class _TodoListState extends State<TodoList> {
     {'title': 'Have fun', 'done': false},
     {'title': 'Meditate', 'done': false},
   ];
+
+  void _toggleDone(int index) {
+    setState(() {
+      _todoItems[index]['done'] = !_todoItems[index]['done'];
+    });
+  }
+
+  void _removeTodoItem(int index) {
+    setState(() {
+      _todoItems.removeAt(index);
+    });
+  }
+
+  void _addNewTask(String task) {
+    setState(() {
+      _todoItems.add({'title': task, 'done': false});
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -65,23 +82,25 @@ class _TodoListState extends State<TodoList> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-          ),
-          Expanded(
-            child: ListView.builder(
-              itemCount: _todoItems.length,
-              itemBuilder: (context, index) {
-                return _buildTodoItem(_todoItems[index]['title'], _todoItems[index]['done'], index);
-              },
-            ),
-          ),
-        ],
+      body: ListView.separated(
+        itemCount: _todoItems.length,
+        itemBuilder: (context, index) {
+          return _buildTodoItem(_todoItems[index]['title'], _todoItems[index]['done'], index);
+        },
+        separatorBuilder: (context, index) {
+          return const Divider(); // Adds a line between items
+        },
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: null,//will call a function to add todo item to list.
+        onPressed: () {
+          // Navigate to the Add Task Screen
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => AddTaskScreen(onAdd: _addNewTask),
+            ),
+          );
+        },
         child: const Icon(Icons.add),
         backgroundColor: Colors.grey[300],
         elevation: 6.0,
@@ -96,7 +115,7 @@ class _TodoListState extends State<TodoList> {
         child: Checkbox(
           value: done,
           onChanged: (bool? value) {
-            //will later call a method for the ability to toggle completed tasks on the todo list 
+            _toggleDone(index);
           },
         ),
       ),
@@ -111,8 +130,61 @@ class _TodoListState extends State<TodoList> {
       trailing: IconButton(
         icon: const Icon(Icons.close),
         onPressed: () {
-          //will call a function to remove todo item from list.
+          _removeTodoItem(index);
         },
+      ),
+    );
+  }
+}
+
+// Second Screen for adding a new task
+class AddTaskScreen extends StatefulWidget {
+  final Function(String) onAdd;
+
+  const AddTaskScreen({super.key, required this.onAdd});
+
+  @override
+  _AddTaskScreenState createState() => _AddTaskScreenState();
+}
+
+class _AddTaskScreenState extends State<AddTaskScreen> {
+  final TextEditingController _controller = TextEditingController();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('TIG333 TODO'),
+        backgroundColor: Colors.grey[300],
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            Navigator.pop(context);
+          },
+        ),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            TextField(
+              controller: _controller,
+              decoration: const InputDecoration(
+                hintText: 'What are you going to do?',
+              ),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () {
+                if (_controller.text.isNotEmpty) {
+                  widget.onAdd(_controller.text);
+                  Navigator.pop(context);
+                }
+              },
+              child: const Text('+ ADD'),
+            ),
+          ],
+        ),
       ),
     );
   }
